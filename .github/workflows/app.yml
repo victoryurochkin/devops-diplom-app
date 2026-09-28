@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       image: ${{ steps.image.outputs.image }}
+      image_digest: ${{ steps.publish.outputs.image_digest }}
     defaults:
       run:
         shell: bash
@@ -81,9 +82,15 @@ jobs:
             docker login --username json_key --password-stdin cr.yandex
 
       - name: Push tested image
+        id: publish
         run: |
           set -euo pipefail
           docker push "$APP_IMAGE"
+
+          IMAGE_DIGEST="$(docker image inspect "$APP_IMAGE" \
+            --format '{{index .RepoDigests 0}}')"
+          [[ "$IMAGE_DIGEST" == "$IMAGE_REPOSITORY@sha256:"* ]]
+          printf 'image_digest=%s\n' "$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
 
           {
             printf 'Published image: %s\n\n' "$APP_IMAGE"
@@ -96,3 +103,69 @@ jobs:
         if: always()
         run: |
           rm -rf -- "$RUNNER_TEMP/diplom-docker-auth"
+
+  deploy:
+    name: Deploy tagged release
+    needs: build-test-push
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: [self-hosted, Linux, X64, diplom-deploy]
+    timeout-minutes: 10
+    permissions: {}
+    concurrency:
+      group: diplom-app-deployment
+      cancel-in-progress: false
+    env:
+      KUBECONFIG: /home/diplom-runner/.kube/config
+      DEPLOY_IMAGE: ${{ needs.build-test-push.outputs.image_digest }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Deploy published image
+        run: |
+          set -euo pipefail
+          test -s "$KUBECONFIG"
+          [[ "$DEPLOY_IMAGE" == "$IMAGE_REPOSITORY@sha256:"* ]]
+          IMAGE_HASH="${DEPLOY_IMAGE##*@sha256:}"
+          [[ "$IMAGE_HASH" =~ ^[0-9a-f]{64}$ ]]
+
+          kubectl --request-timeout=30s -n diplom-app \
+            set image deployment/diplom-app "nginx=$DEPLOY_IMAGE"
+
+          kubectl --request-timeout=240s -n diplom-app \
+            rollout status deployment/diplom-app --timeout=180s
+
+          CURRENT_IMAGE="$(kubectl --request-timeout=30s \
+            -n diplom-app get deployment diplom-app \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="nginx")].image}')"
+          [[ "$CURRENT_IMAGE" == "$DEPLOY_IMAGE" ]]
+
+          kubectl --request-timeout=30s \
+            -n diplom-app get pods -o wide
+
+      - name: Check public HTTP endpoints
+        run: |
+          set -euo pipefail
+
+          for worker_ip in 158.160.20.63 81.26.188.103; do
+            PAGE="$(curl --noproxy '*' --fail --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              "http://$worker_ip/")"
+            [[ "$PAGE" == *"DEVOPS DIPLOMA"* ]]
+            [[ "$PAGE" == *"Виктор Юрочкин"* ]]
+
+            HEALTH="$(curl --noproxy '*' --fail --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              "http://$worker_ip/healthz")"
+            [[ "$HEALTH" == "ok" ]]
+
+            printf 'HTTP %s: page and healthz OK\n' "$worker_ip"
+          done
+
+          {
+            printf 'Release: %s\n\n' "$RELEASE_TAG"
+            printf 'Deployed image: %s\n\n' "$DEPLOY_IMAGE"
+            printf 'Rollout and HTTP checks passed.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
