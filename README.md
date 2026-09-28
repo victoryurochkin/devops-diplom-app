@@ -34,7 +34,7 @@ https://github.com/victoryurochkin/devops-diplom-yandexcloud
 ## Публикация
 
 Репозиторий образов:
-`cr.yandex/crp15t94ei4mots103d9/devops-diplom-app`.
+`cr.yandex/crp77uvg5d2tuusdlk1f/devops-diplom-app`.
 
 Для первоначальной ручной публикации используется тег
 `sha-<12 символов коммита>`.
@@ -73,12 +73,15 @@ Kubeconfig деплоя находится локально на runner:
 RBAC разрешает изменение Deployment diplom-app и чтение подов
 в namespace diplom-app.
 
-Проверенный релиз: v1.0.0.
-Образ: cr.yandex/crp15t94ei4mots103d9/devops-diplom-app:v1.0.0
-Digest: sha256:e7f328f227f530e7604c6afe04f148bff7543563dd982b61fbd4ad7ca8df4315
+Проверенный релиз в пересозданном кластере: v1.0.1.
+Образ: cr.yandex/crp77uvg5d2tuusdlk1f/devops-diplom-app:v1.0.1
+Digest: sha256:f9640c98a09da6d87086a89b287399c73cf61229981097dc57f0bf8bb2ba24eb
 
-Успешный запуск:
-https://github.com/victoryurochkin/devops-diplom-app/actions/runs/36405099315
+Успешный запуск (попытка 2):
+https://github.com/victoryurochkin/devops-diplom-app/actions/runs/36427694065
+
+Первая попытка остановилась при публикации с ответом Registry HTTP 503.
+Повторный запуск завершил сборку, тесты, публикацию и деплой.
 
 После деплоя: Deployment 2/2, обе реплики Running,
 HTTP-проверки приложения прошли.
@@ -93,3 +96,15 @@ Workflow использует GitHub Actions Variables:
 scripts/sync-app-ci-vars.py в инфраструктурном репозитории.
 После пересоздания инфраструктуры синхронизация выполняется
 до запуска сборки и деплоя приложения.
+
+## Доступ после пересоздания инфраструктуры
+
+Приложение:
+
+- http://158.160.31.109/
+- http://158.160.228.171/
+
+Grafana: http://158.160.31.109/grafana/
+
+Релиз v1.0.1 автоматически развёрнут в новом кластере 28.09.2026.
+Проверены две реплики на разных workers, страница приложения и /healthz.
