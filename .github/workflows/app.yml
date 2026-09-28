@@ -12,7 +12,8 @@ permissions:
   contents: read
 
 env:
-  IMAGE_REPOSITORY: cr.yandex/crp15t94ei4mots103d9/devops-diplom-app
+  IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY }}
+  APP_WORKER_IPS: ${{ vars.APP_WORKER_IPS }}
 
 jobs:
   build-test-push:
@@ -36,6 +37,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          test -n "$IMAGE_REPOSITORY"
           APP_TAG="sha-${GITHUB_SHA:0:12}"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             APP_TAG="$GITHUB_REF_NAME"
@@ -149,7 +151,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          for worker_ip in 158.160.20.63 81.26.188.103; do
+          read -r -a WORKER_IPS <<< "$APP_WORKER_IPS"
+          [[ "${#WORKER_IPS[@]}" -eq 2 ]]
+
+          for worker_ip in "${WORKER_IPS[@]}"; do
             PAGE="$(curl --noproxy '*' --fail --silent --show-error \
               --connect-timeout 5 --max-time 15 \
               "http://$worker_ip/")"

@@ -82,3 +82,14 @@ https://github.com/victoryurochkin/devops-diplom-app/actions/runs/36405099315
 
 После деплоя: Deployment 2/2, обе реплики Running,
 HTTP-проверки приложения прошли.
+
+### Параметры инфраструктуры для CI/CD
+
+Workflow использует GitHub Actions Variables:
+- IMAGE_REPOSITORY — адрес репозитория образов.
+- APP_WORKER_IPS — два публичных IPv4 workers через пробел.
+
+Значения обновляются из Terraform outputs скриптом
+scripts/sync-app-ci-vars.py в инфраструктурном репозитории.
+После пересоздания инфраструктуры синхронизация выполняется
+до запуска сборки и деплоя приложения.
