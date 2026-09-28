@@ -87,7 +87,7 @@ jobs:
         id: publish
         run: |
           set -euo pipefail
-          docker push "$APP_IMAGE"
+          ./scripts/retry.sh docker push "$APP_IMAGE"
 
           IMAGE_DIGEST="$(docker image inspect "$APP_IMAGE" \
             --format '{{index .RepoDigests 0}}')"
@@ -116,6 +116,7 @@ jobs:
     concurrency:
       group: diplom-app-deployment
       cancel-in-progress: false
+      queue: max
     env:
       KUBECONFIG: /home/diplom-runner/.kube/config
       DEPLOY_IMAGE: ${{ needs.build-test-push.outputs.image_digest }}
@@ -156,12 +157,14 @@ jobs:
 
           for worker_ip in "${WORKER_IPS[@]}"; do
             PAGE="$(curl --noproxy '*' --fail --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 3 \
               --connect-timeout 5 --max-time 15 \
               "http://$worker_ip/")"
             [[ "$PAGE" == *"DEVOPS DIPLOMA"* ]]
             [[ "$PAGE" == *"Виктор Юрочкин"* ]]
 
             HEALTH="$(curl --noproxy '*' --fail --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 3 \
               --connect-timeout 5 --max-time 15 \
               "http://$worker_ip/healthz")"
             [[ "$HEALTH" == "ok" ]]
