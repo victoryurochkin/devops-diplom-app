@@ -1,0 +1,98 @@
+name: Application CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REPOSITORY: cr.yandex/crp15t94ei4mots103d9/devops-diplom-app
+
+jobs:
+  build-test-push:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Define image tag
+        id: image
+        run: |
+          set -euo pipefail
+
+          APP_TAG="sha-${GITHUB_SHA:0:12}"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            APP_TAG="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$APP_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]]; then
+            printf 'Git tag is not a valid Docker tag\n' >&2
+            exit 1
+          fi
+
+          APP_IMAGE="$IMAGE_REPOSITORY:$APP_TAG"
+          printf 'APP_TAG=%s\n' "$APP_TAG" >> "$GITHUB_ENV"
+          printf 'APP_IMAGE=%s\n' "$APP_IMAGE" >> "$GITHUB_ENV"
+          printf 'image=%s\n' "$APP_IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          set -euo pipefail
+          docker build --pull \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$APP_TAG" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --tag "$APP_IMAGE" .
+
+      - name: Test image
+        run: |
+          set -euo pipefail
+          bash -n scripts/test-image.sh
+          ./scripts/test-image.sh "$APP_IMAGE"
+
+      - name: Login to Yandex Container Registry
+        env:
+          YC_REGISTRY_PUSHER_KEY: ${{ secrets.YC_REGISTRY_PUSHER_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$YC_REGISTRY_PUSHER_KEY"
+
+          export DOCKER_CONFIG="$RUNNER_TEMP/diplom-docker-auth"
+          mkdir -p "$DOCKER_CONFIG"
+          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_CONFIG" >> "$GITHUB_ENV"
+
+          printf '%s' "$YC_REGISTRY_PUSHER_KEY" |
+            docker login --username json_key --password-stdin cr.yandex
+
+      - name: Push tested image
+        run: |
+          set -euo pipefail
+          docker push "$APP_IMAGE"
+
+          {
+            printf 'Published image: %s\n\n' "$APP_IMAGE"
+            printf 'Commit: %s\n\n' "$GITHUB_SHA"
+            docker image inspect "$APP_IMAGE" \
+              --format '{{range .RepoDigests}}{{println .}}{{end}}'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove registry credentials
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/diplom-docker-auth"
