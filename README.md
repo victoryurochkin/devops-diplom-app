@@ -57,15 +57,15 @@ Runner не выполняет checkout для CD. ServiceAccount app-deployer �
 - [Приложение, worker-1](http://158.160.31.109/)
 - [Приложение, worker-2](http://158.160.228.171/)
 - [Grafana](http://158.160.31.109/grafana/)
-- [Успешный релиз v1.0.1](https://github.com/victoryurochkin/devops-diplom-app/actions/runs/36427694065)
+- [Успешный релиз v1.0.2](https://github.com/victoryurochkin/devops-diplom-app/actions/runs/36449846882)
 
 Образ:
 
-    cr.yandex/crp77uvg5d2tuusdlk1f/devops-diplom-app:v1.0.1
+    cr.yandex/crp77uvg5d2tuusdlk1f/devops-diplom-app:v1.0.2
 
 Digest проверенного релиза:
 
-    sha256:f9640c98a09da6d87086a89b287399c73cf61229981097dc57f0bf8bb2ba24eb
+    sha256:0ffb78eac3a82faf5fdf93c697aa321e3bd921020a58a1ad918778060c4e2eab
 
 Новую версию выпускают новым Git-тегом на проверенном коммите.
 Уже опубликованные release-теги не переносятся. Коммит документации запускает CI,
